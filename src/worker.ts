@@ -23,10 +23,10 @@ export default {
     // Get the latest block number
     const blockNumber = await publicClient.getBlockNumber();
 
-    // Get the logs for the last 10 blocks
+    // Get the logs for the last 50 blocks
     const logs = await publicClient.getLogs({
       address,
-      fromBlock: blockNumber - 10n,
+      fromBlock: blockNumber - 50n,
       toBlock: blockNumber,
     });
 

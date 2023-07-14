@@ -8,7 +8,7 @@ kv_namespaces = [
 
 # Cron Triggers
 [triggers]
-crons = ["* * * * *"] # * * * * * = run every minute
+crons = ["*/5 * * * *"] # run every 5 minutes
 
 # The necessary secrets are:
 # - TELEGRAM_TOKEN
