@@ -1,11 +1,13 @@
+import { decodeEventLog } from 'viem';
+
 import { abi, address } from './governor';
 import { publicClient } from './client';
-import { decodeEventLog } from 'viem';
 import { Telegram } from './telegram';
+import { truncateAddress } from './utils';
 
 interface Env {
-  // Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
-  // MY_KV_NAMESPACE: KVNamespace;
+  // KV to store already processed transactions
+  DAO_NOTIFICATIONS: KVNamespace;
 
   // Telegram bot config
   TELEGRAM_TOKEN?: string;
@@ -34,18 +36,35 @@ export default {
     if (!decodedLogs) return;
     const telegram = new Telegram(env.TELEGRAM_TOKEN, env.CHANNEL_ID);
 
-    for (const log of decodedLogs) {
-      if (log.eventName === 'ProposalCreated') {
-        const { proposer, proposalId } = log.args;
-        const ensName = await publicClient.getEnsName({ address: proposer });
+    for (let i = 0; i < decodedLogs.length; i++) {
+      const { args, eventName } = decodedLogs[i];
+      const { transactionHash } = logs[i];
 
-        const message = `*New ENS DAO Proposal* \nPosted by ${
-          ensName || proposer
-        } \n[View on Tally](https://www.tally.xyz/gov/ens/proposal/${proposalId})`;
+      // Ignore pending transactions
+      if (!transactionHash) return;
 
-        const result = await telegram.sendMessage(message);
-        console.log(result);
-      }
+      // Ignore irrelevant events
+      if (eventName !== 'ProposalCreated') return;
+
+      // Check if the transaction has already been processed
+      const existing = await env.DAO_NOTIFICATIONS.get(transactionHash);
+      if (existing) return;
+
+      const { proposer, proposalId } = args;
+      const ensName = await publicClient.getEnsName({ address: proposer });
+
+      const messageParts = [
+        `*New Executable Proposal*`,
+        `Proposer: ${ensName || truncateAddress(proposer)}`,
+        `[View on Tally](https://www.tally.xyz/gov/ens/proposal/${proposalId})`,
+      ];
+
+      const message = messageParts.join('\n');
+      const result = await telegram.sendMessage(message);
+      console.log(result);
+
+      // Save transaction to KV
+      await env.DAO_NOTIFICATIONS.put(transactionHash, '1');
     }
   },
 };
