@@ -7,7 +7,7 @@ import { truncateAddress } from './utils';
 
 interface Env {
   // KV to store already processed transactions
-  DAO_NOTIFICATIONS: KVNamespace;
+  TRANSACTIONS: KVNamespace;
 
   // Telegram bot config
   TELEGRAM_TOKEN?: string;
@@ -47,7 +47,7 @@ export default {
       if (eventName !== 'ProposalCreated') return;
 
       // Check if the transaction has already been processed
-      const existing = await env.DAO_NOTIFICATIONS.get(transactionHash);
+      const existing = await env.TRANSACTIONS.get(transactionHash);
       if (existing) return;
 
       const { proposer, proposalId } = args;
@@ -64,7 +64,7 @@ export default {
       console.log(result);
 
       // Save transaction to KV
-      await env.DAO_NOTIFICATIONS.put(transactionHash, '1');
+      await env.TRANSACTIONS.put(transactionHash, '1');
     }
   },
 };
