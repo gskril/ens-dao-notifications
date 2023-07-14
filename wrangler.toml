@@ -3,7 +3,7 @@ main = "src/worker.ts"
 compatibility_date = "2023-05-15"
 
 kv_namespaces = [
-  { binding = "TRANSACTIONS", id = "6d994c6add7e41e6aad96895803c9190" }
+  { binding = "TRANSACTIONS", id = "8a331b5603b048b4a1223182cd79fa1d" }
 ]
 
 # Cron Triggers
