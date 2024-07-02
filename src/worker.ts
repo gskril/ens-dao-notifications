@@ -56,7 +56,7 @@ export default {
       const messageParts = [
         `*New Executable Proposal*`,
         `Proposer: ${ensName || truncateAddress(proposer)}`,
-        `[View on Tally](https://www.tally.xyz/gov/ens/proposal/${proposalId})`,
+        `View on [Tally](https://www.tally.xyz/gov/ens/proposal/${proposalId}) or [Agora](https://agora.ensdao.org/proposals/${proposalId})`,
       ];
 
       const message = messageParts.join('\n');
