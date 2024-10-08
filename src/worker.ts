@@ -1,7 +1,7 @@
-import { decodeEventLog } from 'viem';
+import { createPublicClient, decodeEventLog, http } from 'viem';
+import { mainnet } from 'viem/chains';
 
 import { abi, address } from './governor';
-import { publicClient } from './client';
 import { Telegram } from './telegram';
 import { truncateAddress } from './utils';
 
@@ -12,6 +12,9 @@ interface Env {
   // Telegram bot config
   TELEGRAM_TOKEN?: string;
   CHANNEL_ID?: string;
+
+  // Ethereum RPC
+  ETH_RPC?: string;
 }
 
 export default {
@@ -19,6 +22,11 @@ export default {
     if (!env.TELEGRAM_TOKEN || !env.CHANNEL_ID) {
       throw new Error('Missing Telegram config');
     }
+
+    const publicClient = createPublicClient({
+      chain: mainnet,
+      transport: http(env.ETH_RPC),
+    });
 
     // Get the latest block number
     const blockNumber = await publicClient.getBlockNumber();
