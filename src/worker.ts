@@ -1,11 +1,8 @@
-import { createPublicClient, decodeEventLog, http } from 'viem';
-import { mainnet } from 'viem/chains';
-
-import { abi, address } from './governor';
+import { createViemClient, getRecentLogs } from './eth';
 import { Telegram } from './telegram';
 import { truncateAddress } from './utils';
 
-interface Env {
+export interface Env {
   // KV to store already processed transactions
   TRANSACTIONS: KVNamespace;
 
@@ -19,47 +16,21 @@ interface Env {
 
 export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    if (!env.TELEGRAM_TOKEN || !env.CHANNEL_ID) {
-      throw new Error('Missing Telegram config');
-    }
+    const telegram = new Telegram(env);
+    const client = createViemClient(env);
+    const logs = await getRecentLogs(client);
 
-    const publicClient = createPublicClient({
-      chain: mainnet,
-      transport: http(env.ETH_RPC),
-    });
+    if (!logs) return;
 
-    // Get the latest block number
-    const blockNumber = await publicClient.getBlockNumber();
-
-    // Get the logs for the last 50 blocks
-    const logs = await publicClient.getLogs({
-      address,
-      fromBlock: blockNumber - 50n,
-      toBlock: blockNumber,
-    });
-
-    // Decode the logs
-    const decodedLogs = logs.map((log) => decodeEventLog({ abi, data: log.data, topics: log.topics }));
-
-    if (!decodedLogs) return;
-    const telegram = new Telegram(env.TELEGRAM_TOKEN, env.CHANNEL_ID);
-
-    for (let i = 0; i < decodedLogs.length; i++) {
-      const { args, eventName } = decodedLogs[i];
-      const { transactionHash } = logs[i];
-
-      // Ignore pending transactions
-      if (!transactionHash) return;
-
-      // Ignore irrelevant events
-      if (eventName !== 'ProposalCreated') return;
+    for (const log of logs) {
+      const { proposer, proposalId } = log;
+      const key = proposalId.toString();
 
       // Check if the transaction has already been processed
-      const existing = await env.TRANSACTIONS.get(transactionHash);
-      if (existing) return;
+      const existing = await env.TRANSACTIONS.get(key);
+      if (existing) continue;
 
-      const { proposer, proposalId } = args;
-      const ensName = await publicClient.getEnsName({ address: proposer });
+      const ensName = await client.getEnsName({ address: proposer });
 
       const messageParts = [
         `*New Executable Proposal*`,
@@ -72,7 +43,7 @@ export default {
       console.log(result);
 
       // Save transaction to KV
-      await env.TRANSACTIONS.put(transactionHash, '1');
+      await env.TRANSACTIONS.put(key, '1');
     }
   },
 };
