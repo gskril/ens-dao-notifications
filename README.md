@@ -11,3 +11,11 @@ To set this up, you'll need a Telegram API token and a Telegram channel where yo
 - Find the ID of your Telegram channel on [web.telegram.org](https://web.telegram.org/). Use the value after "-100" in the URL. For example, the [ENS DAO Notifications](https://t.me/ensdao_notifications) channel has the URL `https://web.telegram.org/a/#-1001934911549`, so the ID is `1934911549`.
 
 Learn how to set the environment variables in [`wrangler.toml`](wrangler.toml).
+
+## Development
+
+To simulate cron triggers locally, run the following command:
+
+```bash
+curl "http://localhost:8787/cdn-cgi/handler/scheduled?cron=*+*+*+*+*"
+```

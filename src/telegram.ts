@@ -20,9 +20,10 @@ export class Telegram {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id: -100 + this.CHANNEL_ID,
+        chat_id: '-100' + this.CHANNEL_ID,
         text: message,
         parse_mode: 'Markdown',
+        disable_web_page_preview: true,
       }),
     });
 

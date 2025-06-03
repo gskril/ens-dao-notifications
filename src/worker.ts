@@ -1,4 +1,5 @@
 import { createViemClient, getRecentLogs } from './eth';
+import { extractTitle } from './markdown';
 import { Telegram } from './telegram';
 import { truncateAddress } from './utils';
 
@@ -23,20 +24,28 @@ export default {
     if (!logs) return;
 
     for (const log of logs) {
-      const { proposer, proposalId } = log;
+      const { description: markdown, proposer, proposalId } = log;
       const key = proposalId.toString();
 
       // Check if the transaction has already been processed
       const existing = await env.TRANSACTIONS.get(key);
       if (existing) continue;
 
+      const title = extractTitle(markdown);
       const ensName = await client.getEnsName({ address: proposer });
 
       const messageParts = [
-        `*New Executable Proposal*`,
         `Proposer: ${ensName || truncateAddress(proposer)}`,
-        `View on [Tally](https://www.tally.xyz/gov/ens/proposal/${proposalId}) or [Agora](https://agora.ensdao.org/proposals/${proposalId})`,
+        `Vote on [Tally](https://www.tally.xyz/gov/ens/proposal/${proposalId}) or [Agora](https://agora.ensdao.org/proposals/${proposalId})`,
       ];
+
+      if (title) {
+        // Push the title to the beginning of the message with an extra line break
+        messageParts.unshift('');
+        messageParts.unshift(`*New Executable Proposal*: ${title}`);
+      } else {
+        messageParts.unshift(`*New Executable Proposal*`);
+      }
 
       const message = messageParts.join('\n');
       const result = await telegram.sendMessage(message);
