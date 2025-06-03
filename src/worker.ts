@@ -1,7 +1,6 @@
-import { createViemClient, getRecentLogs } from './eth';
+import { createViemClient, getRecentLogs, truncateAddress } from './eth';
 import { extractTitle } from './markdown';
 import { Telegram } from './telegram';
-import { truncateAddress } from './utils';
 
 export interface Env {
   // KV to store already processed transactions

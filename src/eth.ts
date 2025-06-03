@@ -1,4 +1,4 @@
-import { PublicClient, createPublicClient, http } from 'viem';
+import { Address, PublicClient, createPublicClient, http } from 'viem';
 import { decodeEventLog } from 'viem';
 import { mainnet } from 'viem/chains';
 
@@ -36,4 +36,8 @@ export async function getRecentLogs(client: PublicClient) {
 
   // We only care about the args
   return filteredLogs.map((log) => log.args);
+}
+
+export function truncateAddress(address: Address) {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
