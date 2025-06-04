@@ -99,6 +99,7 @@ export class GitHub {
       title: `Add EP ${ep}`,
       head: branch,
       base: 'master',
+      maintainer_can_modify: true,
     });
   }
 
