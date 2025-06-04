@@ -75,10 +75,10 @@ export default {
       const author = ensName || truncateAddress(proposer);
 
       const messageParts = [
-        `*New Snapshot Proposal*: ${title}`,
+        `*New Social Proposal*: ${title}`,
         '',
         `Proposer: ${author}`,
-        `Vote on [Tally](https://www.tally.xyz/gov/ens/proposal/${id}) or [Agora](https://agora.ensdao.org/proposals/${id})`,
+        `Vote on [Snapshot](https://snapshot.box/#/s:ens.eth/proposal/${id})`,
       ];
 
       // Add the title in markdown to the beginning of the body to match onchain proposals

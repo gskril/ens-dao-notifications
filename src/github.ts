@@ -133,8 +133,8 @@ export class GitHub {
 
   private async formatFile({ author, markdown, title }: FormatFileParams) {
     if (title) {
-      // Under the first title, add `::author`
-      markdown = markdown.replace(title, `${title}\n::author\n`);
+      // Under the first title, add `::authors`
+      markdown = markdown.replace(title, `${title}\n\n::authors\n`);
     }
 
     // Add frontmatter
