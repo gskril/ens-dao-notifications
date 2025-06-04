@@ -1,6 +1,7 @@
 import { createViemClient, getRecentLogs, truncateAddress } from './eth';
 import { GitHub } from './github';
 import { extractTitle } from './markdown';
+import { getSnapshotProposals } from './snapshot';
 import { Telegram } from './telegram';
 
 export interface Env {
@@ -24,8 +25,9 @@ export default {
     const telegram = new Telegram(env);
     const client = createViemClient(env);
     const logs = await getRecentLogs(client);
+    const snapshotProposals = await getSnapshotProposals();
 
-    if (!logs) return;
+    if (!logs && !snapshotProposals) return;
 
     for (const log of logs) {
       const { description: markdown, proposer, proposalId: id } = log;
@@ -56,6 +58,36 @@ export default {
       await telegram.sendMessage(message);
       await github.addProposal({ author, id, markdown, title });
       console.log(`Processed proposal ${id}`);
+
+      // Save transaction to KV
+      await env.TRANSACTIONS.put(key, '1');
+    }
+
+    for (const proposal of snapshotProposals) {
+      const { id, title, author: proposer, body } = proposal;
+      const key = id.toString();
+
+      // Check if the proposal has already been processed
+      const existing = await env.TRANSACTIONS.get(key);
+      if (existing) continue;
+
+      const ensName = await client.getEnsName({ address: proposer });
+      const author = ensName || truncateAddress(proposer);
+
+      const messageParts = [
+        `*New Snapshot Proposal*: ${title}`,
+        '',
+        `Proposer: ${author}`,
+        `Vote on [Tally](https://www.tally.xyz/gov/ens/proposal/${id}) or [Agora](https://agora.ensdao.org/proposals/${id})`,
+      ];
+
+      // Add the title in markdown to the beginning of the body to match onchain proposals
+      const markdown = `# ${title}\n\n${body}`;
+
+      const message = messageParts.join('\n');
+      await telegram.sendMessage(message);
+      await github.addProposal({ author, id, markdown, title });
+      console.log(`Processed Snapshot proposal ${id}`);
 
       // Save transaction to KV
       await env.TRANSACTIONS.put(key, '1');

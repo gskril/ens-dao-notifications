@@ -7,7 +7,7 @@ import { Env } from './worker';
 
 type AddProposalParams = {
   author: string;
-  id: bigint;
+  id: bigint | string;
   markdown: string;
   title: string | null;
 };
