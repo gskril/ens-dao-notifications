@@ -28,8 +28,8 @@ export default {
     if (!logs) return;
 
     for (const log of logs) {
-      const { description: markdown, proposer, proposalId } = log;
-      const key = proposalId.toString();
+      const { description: markdown, proposer, proposalId: id } = log;
+      const key = id.toString();
 
       // Check if the transaction has already been processed
       const existing = await env.TRANSACTIONS.get(key);
@@ -37,10 +37,11 @@ export default {
 
       const title = extractTitle(markdown);
       const ensName = await client.getEnsName({ address: proposer });
+      const author = ensName || truncateAddress(proposer);
 
       const messageParts = [
-        `Proposer: ${ensName || truncateAddress(proposer)}`,
-        `Vote on [Tally](https://www.tally.xyz/gov/ens/proposal/${proposalId}) or [Agora](https://agora.ensdao.org/proposals/${proposalId})`,
+        `Proposer: ${author}`,
+        `Vote on [Tally](https://www.tally.xyz/gov/ens/proposal/${id}) or [Agora](https://agora.ensdao.org/proposals/${id})`,
       ];
 
       if (title) {
@@ -53,8 +54,8 @@ export default {
 
       const message = messageParts.join('\n');
       await telegram.sendMessage(message);
-      await github.addProposal({ markdown, proposalId, title });
-      console.log(`Processed proposal ${proposalId}`);
+      await github.addProposal({ author, id, markdown, title });
+      console.log(`Processed proposal ${id}`);
 
       // Save transaction to KV
       await env.TRANSACTIONS.put(key, '1');
