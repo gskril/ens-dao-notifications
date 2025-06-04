@@ -1,4 +1,5 @@
 import { createViemClient, getRecentLogs, truncateAddress } from './eth';
+import { GitHub } from './github';
 import { extractTitle } from './markdown';
 import { Telegram } from './telegram';
 
@@ -12,10 +13,14 @@ export interface Env {
 
   // Ethereum RPC
   ETH_RPC?: string;
+
+  // Github token
+  GITHUB_TOKEN?: string;
 }
 
 export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    const github = new GitHub(env);
     const telegram = new Telegram(env);
     const client = createViemClient(env);
     const logs = await getRecentLogs(client);
@@ -47,8 +52,9 @@ export default {
       }
 
       const message = messageParts.join('\n');
-      const result = await telegram.sendMessage(message);
-      console.log(result);
+      await telegram.sendMessage(message);
+      await github.addProposal({ markdown, proposalId, title });
+      console.log(`Processed proposal ${proposalId}`);
 
       // Save transaction to KV
       await env.TRANSACTIONS.put(key, '1');
