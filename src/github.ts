@@ -1,0 +1,189 @@
+import { RequestError } from '@octokit/request-error';
+import { Octokit } from '@octokit/rest';
+import prettier from 'prettier';
+import mdParser from 'prettier/plugins/markdown';
+
+import { Env } from './worker';
+
+type AddProposalParams = {
+  author: string;
+  id: bigint | string;
+  markdown: string;
+  title: string | null;
+};
+
+type CreateFileParams = {
+  author: string;
+  branch: string;
+  ep: string;
+  markdown: string;
+  title: string | null;
+};
+
+type OpenPullRequestParams = {
+  branch: string;
+  ep: string;
+};
+
+type FormatFileParams = {
+  author: string;
+  markdown: string;
+  title: string | null;
+};
+
+export class GitHub {
+  private octokit: Octokit;
+  private owner: string;
+  private repo: string;
+  private upstreamOwner = 'ensdomains';
+  private upstreamRepo = 'docs';
+
+  constructor(env: Env) {
+    if (!env.GITHUB_TOKEN || !env.GITHUB_REPO_OWNER || !env.GITHUB_REPO_NAME) {
+      throw new Error('Missing GitHub config');
+    }
+
+    this.octokit = new Octokit({ auth: env.GITHUB_TOKEN });
+    this.owner = env.GITHUB_REPO_OWNER;
+    this.repo = env.GITHUB_REPO_NAME;
+
+    if (env.IS_DEV) {
+      // Open PRs against the user's own repo in dev mode
+      this.upstreamOwner = env.GITHUB_REPO_OWNER;
+      this.upstreamRepo = env.GITHUB_REPO_NAME;
+    }
+  }
+
+  async addProposal({ author, id, markdown, title }: AddProposalParams) {
+    const branch = `prop/${id}`;
+    const ep = await this.assignNumber();
+    const createdBranch = await this.createBranch(branch);
+
+    if (createdBranch) {
+      await this.createFile({ author, branch, markdown, ep, title });
+      const pr = await this.openPullRequest({ branch, ep });
+      console.log(`Created PR ${pr.data.html_url}`);
+    }
+  }
+
+  // Creates a new branch on the configured user's repo
+  private async createBranch(branch: string) {
+    const mainBranch = await this.octokit.rest.git.getRef({
+      owner: this.owner,
+      repo: this.repo,
+      ref: 'heads/master',
+    });
+
+    try {
+      return await this.octokit.rest.git.createRef({
+        owner: this.owner,
+        repo: this.repo,
+        ref: `refs/heads/${branch}`,
+        sha: mainBranch.data.object.sha,
+      });
+    } catch (error) {
+      if (error instanceof RequestError) {
+        console.error(error.message);
+        return null;
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  // Creates a new file in the configured user's repo
+  private async createFile({ author, branch, ep, markdown, title }: CreateFileParams) {
+    return this.octokit.rest.repos.createOrUpdateFileContents({
+      owner: this.owner,
+      repo: this.repo,
+      path: `src/pages/dao/proposals/${ep}.mdx`,
+      message: `Add EP ${ep}`,
+      content: await this.formatFile({ author, markdown, title }),
+      branch,
+    });
+  }
+
+  // Opens a pull request from the configured user's repo to the ENS docs repo
+  private async openPullRequest({ branch, ep }: OpenPullRequestParams) {
+    return this.octokit.rest.pulls.create({
+      owner: this.upstreamOwner,
+      repo: this.upstreamRepo,
+      body: 'This is an automated pull request to add a new DAO proposal to the ENS docs.',
+      title: `Add EP ${ep}`,
+      head: `${this.owner}:${branch}`,
+      base: 'master',
+      maintainer_can_modify: true,
+    });
+  }
+
+  // Assigns a number to the proposal
+  private async assignNumber() {
+    // Get the current term
+    const [startingYear, startingTerm] = [2025, 6];
+
+    // Each term is 1 year long, starting on the first of the year
+    const currentYear = new Date().getFullYear();
+    const currentTerm = Math.floor((currentYear - startingYear) / 1) + startingTerm;
+
+    // Get the number of proposals in the current term
+    // filenames in the `src/pages/dao/proposals` directory are of the form `{ep}.mdx`
+    const proposals = await this.octokit.rest.repos.getContent({
+      owner: this.upstreamOwner,
+      repo: this.upstreamRepo,
+      path: 'src/pages/dao/proposals',
+    });
+
+    // Enforce that proposals.data is an array (which is always the case, since the path above is a directory)
+    // This is just a formality to make TypeScript happy
+    if (!Array.isArray(proposals.data)) {
+      throw new Error('Proposals directory not found');
+    }
+
+    const currentTermProposals = proposals.data.filter((file) => file.name.startsWith(`${currentTerm}.`));
+    const currentTermProposalCount = currentTermProposals.length;
+    let nextProposalNumber: number;
+
+    if (currentTerm === 6) {
+      // Bump the proposal number up 1 while we're in Term 6, since this system is getting adopted partway through the term
+      // (Safe to remove this after Jan 1, 2026)
+      nextProposalNumber = currentTermProposalCount + 2;
+    } else {
+      nextProposalNumber = currentTermProposalCount + 1;
+    }
+
+    return `${currentTerm}.${nextProposalNumber}`;
+  }
+
+  // Wraps the proposal's markdown in the ENS docs formatting, applies prettier, etc.
+  private async formatFile({ author, markdown, title }: FormatFileParams) {
+    if (title) {
+      // Under the first title, add `::authors`
+      markdown = markdown.replace(title, `${title}\n\n::authors\n`);
+    }
+
+    // Add frontmatter
+    markdown = `---
+authors:
+  - ${author}
+proposal:
+  type: 'executable'
+---
+
+${markdown}`;
+
+    // Run prettier on the markdown, matching the ENS docs formatting
+    const formatted = await prettier.format(markdown, {
+      semi: false,
+      tabWidth: 2,
+      useTabs: false,
+      singleQuote: true,
+      trailingComma: 'es5',
+      plugins: [mdParser],
+      parser: 'mdx',
+    });
+
+    // Base64 encode the markdown (wrapping in `unescape` and `encodeURIComponent` to avoid issues with special characters like emojis)
+    const content = btoa(unescape(encodeURIComponent(formatted)));
+    return content;
+  }
+}

@@ -1,11 +1,17 @@
+import { Env } from './worker';
+
 export class Telegram {
   private TOKEN: string;
   private CHANNEL_ID: string;
   private ENDPOINT: string;
 
-  constructor(TELEGRAM_TOKEN: string, TELEGRAM_CHANNEL_ID: string) {
-    this.TOKEN = TELEGRAM_TOKEN;
-    this.CHANNEL_ID = TELEGRAM_CHANNEL_ID;
+  constructor(env: Env) {
+    if (!env.TELEGRAM_TOKEN || !env.TELEGRAM_CHANNEL_ID) {
+      throw new Error('Missing Telegram config');
+    }
+
+    this.TOKEN = env.TELEGRAM_TOKEN;
+    this.CHANNEL_ID = env.TELEGRAM_CHANNEL_ID;
     this.ENDPOINT = `https://api.telegram.org/bot${this.TOKEN}/sendMessage`;
   }
 
@@ -14,9 +20,10 @@ export class Telegram {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id: -100 + this.CHANNEL_ID,
+        chat_id: '-100' + this.CHANNEL_ID,
         text: message,
         parse_mode: 'Markdown',
+        disable_web_page_preview: true,
       }),
     });
 

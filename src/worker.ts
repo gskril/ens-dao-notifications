@@ -1,78 +1,101 @@
-import { createPublicClient, decodeEventLog, http } from 'viem';
-import { mainnet } from 'viem/chains';
-
-import { abi, address } from './governor';
+import { createViemClient, getRecentLogs, truncateAddress } from './eth';
+import { GitHub } from './github';
+import { extractTitle } from './markdown';
+import { getSnapshotProposals } from './snapshot';
 import { Telegram } from './telegram';
-import { truncateAddress } from './utils';
 
-interface Env {
+export interface Env {
   // KV to store already processed transactions
   TRANSACTIONS: KVNamespace;
 
-  // Telegram bot config
+  // Telegram
   TELEGRAM_TOKEN?: string;
-  CHANNEL_ID?: string;
+  TELEGRAM_CHANNEL_ID?: string;
 
-  // Ethereum RPC
+  // GitHub
+  GITHUB_TOKEN?: string;
+  GITHUB_REPO_OWNER?: string;
+  GITHUB_REPO_NAME?: string;
+
+  // Ethereum
   ETH_RPC?: string;
+
+  // Misc
+  IS_DEV: boolean;
 }
 
 export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    if (!env.TELEGRAM_TOKEN || !env.CHANNEL_ID) {
-      throw new Error('Missing Telegram config');
-    }
+    const github = new GitHub(env);
+    const telegram = new Telegram(env);
+    const client = createViemClient(env);
+    const logs = await getRecentLogs(client);
+    const snapshotProposals = await getSnapshotProposals();
 
-    const publicClient = createPublicClient({
-      chain: mainnet,
-      transport: http(env.ETH_RPC),
-    });
+    if (!logs && !snapshotProposals) return;
 
-    // Get the latest block number
-    const blockNumber = await publicClient.getBlockNumber();
-
-    // Get the logs for the last 50 blocks
-    const logs = await publicClient.getLogs({
-      address,
-      fromBlock: blockNumber - 50n,
-      toBlock: blockNumber,
-    });
-
-    // Decode the logs
-    const decodedLogs = logs.map((log) => decodeEventLog({ abi, data: log.data, topics: log.topics }));
-
-    if (!decodedLogs) return;
-    const telegram = new Telegram(env.TELEGRAM_TOKEN, env.CHANNEL_ID);
-
-    for (let i = 0; i < decodedLogs.length; i++) {
-      const { args, eventName } = decodedLogs[i];
-      const { transactionHash } = logs[i];
-
-      // Ignore pending transactions
-      if (!transactionHash) return;
-
-      // Ignore irrelevant events
-      if (eventName !== 'ProposalCreated') return;
+    for (const log of logs) {
+      const { description: markdown, proposer, proposalId: id } = log;
+      const key = id.toString();
 
       // Check if the transaction has already been processed
-      const existing = await env.TRANSACTIONS.get(transactionHash);
-      if (existing) return;
+      const existing = await env.TRANSACTIONS.get(key);
+      if (existing) continue;
 
-      const { proposer, proposalId } = args;
-      const ensName = await publicClient.getEnsName({ address: proposer });
+      const title = extractTitle(markdown);
+      const ensName = await client.getEnsName({ address: proposer });
+      const author = ensName || truncateAddress(proposer);
 
       const messageParts = [
-        `*New Executable Proposal*`,
-        `Proposer: ${ensName || truncateAddress(proposer)}`,
-        `View on [Tally](https://www.tally.xyz/gov/ens/proposal/${proposalId}) or [Agora](https://agora.ensdao.org/proposals/${proposalId})`,
+        `Proposer: ${author}`,
+        `Vote on [Tally](https://www.tally.xyz/gov/ens/proposal/${id}) or [Agora](https://agora.ensdao.org/proposals/${id})`,
       ];
 
+      if (title) {
+        // Push the title to the beginning of the message with an extra line break
+        messageParts.unshift('');
+        messageParts.unshift(`*New Executable Proposal*: ${title}`);
+      } else {
+        messageParts.unshift(`*New Executable Proposal*`);
+      }
+
       const message = messageParts.join('\n');
-      const result = await telegram.sendMessage(message);
-      console.log(result);
+      await telegram.sendMessage(message);
+      await github.addProposal({ author, id, markdown, title });
+      console.log(`Processed proposal ${id}`);
 
       // Save transaction to KV
-      await env.TRANSACTIONS.put(transactionHash, '1');
+      await env.TRANSACTIONS.put(key, '1');
+    }
+
+    for (const proposal of snapshotProposals) {
+      const { id, title, author: proposer, body } = proposal;
+      const key = id.toString();
+
+      // Check if the proposal has already been processed
+      const existing = await env.TRANSACTIONS.get(key);
+      if (existing) continue;
+
+      const ensName = await client.getEnsName({ address: proposer });
+      const author = ensName || truncateAddress(proposer);
+
+      const messageParts = [
+        `*New Social Proposal*: ${title}`,
+        '',
+        `Proposer: ${author}`,
+        `Vote on [Snapshot](https://snapshot.box/#/s:ens.eth/proposal/${id})`,
+      ];
+
+      // Add the title in markdown to the beginning of the body to match onchain proposals
+      const markdown = `# ${title}\n\n${body}`;
+
+      const message = messageParts.join('\n');
+      await telegram.sendMessage(message);
+      await github.addProposal({ author, id, markdown, title });
+      console.log(`Processed Snapshot proposal ${id}`);
+
+      // Save transaction to KV
+      await env.TRANSACTIONS.put(key, '1');
     }
   },
 };
