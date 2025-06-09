@@ -141,7 +141,16 @@ export class GitHub {
 
     const currentTermProposals = proposals.data.filter((file) => file.name.startsWith(`${currentTerm}.`));
     const currentTermProposalCount = currentTermProposals.length;
-    const nextProposalNumber = currentTermProposalCount + 1;
+    let nextProposalNumber: number;
+
+    if (currentTerm === 6) {
+      // Bump the proposal number up 1 while we're in Term 6, since this system is getting adopted partway through the term
+      // (Safe to remove this after Jan 1, 2026)
+      nextProposalNumber = currentTermProposalCount + 2;
+    } else {
+      nextProposalNumber = currentTermProposalCount + 1;
+    }
+
     return `${currentTerm}.${nextProposalNumber}`;
   }
 
