@@ -6,12 +6,12 @@ export class Telegram {
   private ENDPOINT: string;
 
   constructor(env: Env) {
-    if (!env.TELEGRAM_TOKEN || !env.CHANNEL_ID) {
+    if (!env.TELEGRAM_TOKEN || !env.TELEGRAM_CHANNEL_ID) {
       throw new Error('Missing Telegram config');
     }
 
     this.TOKEN = env.TELEGRAM_TOKEN;
-    this.CHANNEL_ID = env.CHANNEL_ID;
+    this.CHANNEL_ID = env.TELEGRAM_CHANNEL_ID;
     this.ENDPOINT = `https://api.telegram.org/bot${this.TOKEN}/sendMessage`;
   }
 

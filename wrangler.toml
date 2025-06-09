@@ -6,11 +6,5 @@ kv_namespaces = [
   { binding = "TRANSACTIONS", id = "8a331b5603b048b4a1223182cd79fa1d" }
 ]
 
-# Cron Triggers
 [triggers]
 crons = ["*/5 * * * *"] # run every 5 minutes
-
-# The necessary secrets are:
-# - TELEGRAM_TOKEN
-# - CHANNEL_ID
-# Run `echo <VALUE> | npx wrangler secret put <NAME>` for each of these

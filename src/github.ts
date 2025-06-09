@@ -33,15 +33,25 @@ type FormatFileParams = {
 
 export class GitHub {
   private octokit: Octokit;
-  private owner = 'gskril';
-  private repo = 'ens-docs';
+  private owner: string;
+  private repo: string;
+  private upstreamOwner = 'ensdomains';
+  private upstreamRepo = 'docs';
 
   constructor(env: Env) {
-    if (!env.GITHUB_TOKEN) {
-      throw new Error('Missing GitHub token');
+    if (!env.GITHUB_TOKEN || !env.GITHUB_REPO_OWNER || !env.GITHUB_REPO_NAME) {
+      throw new Error('Missing GitHub config');
     }
 
     this.octokit = new Octokit({ auth: env.GITHUB_TOKEN });
+    this.owner = env.GITHUB_REPO_OWNER;
+    this.repo = env.GITHUB_REPO_NAME;
+
+    if (env.IS_DEV) {
+      // Open PRs against the user's own repo in dev mode
+      this.upstreamOwner = env.GITHUB_REPO_OWNER;
+      this.upstreamRepo = env.GITHUB_REPO_NAME;
+    }
   }
 
   async addProposal({ author, id, markdown, title }: AddProposalParams) {
@@ -56,6 +66,7 @@ export class GitHub {
     }
   }
 
+  // Creates a new branch on the configured user's repo
   private async createBranch(branch: string) {
     const mainBranch = await this.octokit.rest.git.getRef({
       owner: this.owner,
@@ -72,7 +83,7 @@ export class GitHub {
       });
     } catch (error) {
       if (error instanceof RequestError) {
-        console.log(`Branch already exists`);
+        console.error(error.message);
         return null;
       } else {
         throw error;
@@ -80,6 +91,7 @@ export class GitHub {
     }
   }
 
+  // Creates a new file in the configured user's repo
   private async createFile({ author, branch, ep, markdown, title }: CreateFileParams) {
     return this.octokit.rest.repos.createOrUpdateFileContents({
       owner: this.owner,
@@ -91,18 +103,20 @@ export class GitHub {
     });
   }
 
+  // Opens a pull request from the configured user's repo to the ENS docs repo
   private async openPullRequest({ branch, ep }: OpenPullRequestParams) {
     return this.octokit.rest.pulls.create({
-      owner: this.owner,
-      repo: this.repo,
+      owner: this.upstreamOwner,
+      repo: this.upstreamRepo,
       body: 'This is an automated pull request to add a new DAO proposal to the ENS docs.',
       title: `Add EP ${ep}`,
-      head: branch,
+      head: `${this.owner}:${branch}`,
       base: 'master',
       maintainer_can_modify: true,
     });
   }
 
+  // Assigns a number to the proposal
   private async assignNumber() {
     // Get the current term
     const [startingYear, startingTerm] = [2025, 6];
@@ -114,8 +128,8 @@ export class GitHub {
     // Get the number of proposals in the current term
     // filenames in the `src/pages/dao/proposals` directory are of the form `{ep}.mdx`
     const proposals = await this.octokit.rest.repos.getContent({
-      owner: this.owner,
-      repo: this.repo,
+      owner: this.upstreamOwner,
+      repo: this.upstreamRepo,
       path: 'src/pages/dao/proposals',
     });
 
@@ -131,6 +145,7 @@ export class GitHub {
     return `${currentTerm}.${nextProposalNumber}`;
   }
 
+  // Wraps the proposal's markdown in the ENS docs formatting, applies prettier, etc.
   private async formatFile({ author, markdown, title }: FormatFileParams) {
     if (title) {
       // Under the first title, add `::authors`
@@ -158,9 +173,8 @@ ${markdown}`;
       parser: 'mdx',
     });
 
-    // Base64 encode the markdown
-    const content = btoa(formatted);
-
+    // Base64 encode the markdown (wrapping in `unescape` and `encodeURIComponent` to avoid issues with special characters like emojis)
+    const content = btoa(unescape(encodeURIComponent(formatted)));
     return content;
   }
 }

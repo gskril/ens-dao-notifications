@@ -8,15 +8,20 @@ export interface Env {
   // KV to store already processed transactions
   TRANSACTIONS: KVNamespace;
 
-  // Telegram bot config
+  // Telegram
   TELEGRAM_TOKEN?: string;
-  CHANNEL_ID?: string;
+  TELEGRAM_CHANNEL_ID?: string;
 
-  // Ethereum RPC
+  // GitHub
+  GITHUB_TOKEN?: string;
+  GITHUB_REPO_OWNER?: string;
+  GITHUB_REPO_NAME?: string;
+
+  // Ethereum
   ETH_RPC?: string;
 
-  // Github token
-  GITHUB_TOKEN?: string;
+  // Misc
+  IS_DEV: boolean;
 }
 
 export default {
