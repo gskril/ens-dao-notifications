@@ -1,10 +1,10 @@
-name = "dao-notifications"
+name = "dao-proposal-monitor"
 main = "src/worker.ts"
 compatibility_date = "2023-05-15"
 
-kv_namespaces = [
-  { binding = "TRANSACTIONS", id = "8a331b5603b048b4a1223182cd79fa1d" }
-]
+[[kv_namespaces]]
+binding = "PROPOSALS"
+id = "7750db481af74240a874f7b8862c73ef"
 
 [triggers]
 crons = ["*/5 * * * *"] # run every 5 minutes

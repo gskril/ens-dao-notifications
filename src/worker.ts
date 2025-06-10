@@ -5,8 +5,8 @@ import { getSnapshotProposals } from './snapshot';
 import { Telegram } from './telegram';
 
 export interface Env {
-  // KV to store already processed transactions
-  TRANSACTIONS: KVNamespace;
+  // KV to store already processed proposals
+  PROPOSALS: KVNamespace;
 
   // Telegram
   TELEGRAM_TOKEN?: string;
@@ -38,8 +38,8 @@ export default {
       const { description: markdown, proposer, proposalId: id } = log;
       const key = id.toString();
 
-      // Check if the transaction has already been processed
-      const existing = await env.TRANSACTIONS.get(key);
+      // Check if the proposal has already been processed
+      const existing = await env.PROPOSALS.get(key);
       if (existing) continue;
 
       const title = extractTitle(markdown);
@@ -64,8 +64,8 @@ export default {
       await github.addProposal({ author, id, markdown, title });
       console.log(`Processed proposal ${id}`);
 
-      // Save transaction to KV
-      await env.TRANSACTIONS.put(key, '1');
+      // Save proposal to KV
+      await env.PROPOSALS.put(key, '1');
     }
 
     for (const proposal of snapshotProposals) {
@@ -73,7 +73,7 @@ export default {
       const key = id.toString();
 
       // Check if the proposal has already been processed
-      const existing = await env.TRANSACTIONS.get(key);
+      const existing = await env.PROPOSALS.get(key);
       if (existing) continue;
 
       const ensName = await client.getEnsName({ address: proposer });
@@ -94,8 +94,8 @@ export default {
       await github.addProposal({ author, id, markdown, title });
       console.log(`Processed Snapshot proposal ${id}`);
 
-      // Save transaction to KV
-      await env.TRANSACTIONS.put(key, '1');
+      // Save proposal to KV
+      await env.PROPOSALS.put(key, '1');
     }
   },
 };
